@@ -33,42 +33,44 @@ def read_encoder(shared_data):
 		shared_data.value = encoder.get_position()
 		time.sleep(0.001)
 		
-def get_cluster(conn2):
+def get_cluster(conn2,conn3):
 	while True:
 		point_matrix = conn2.recv()
 		angle = shared_data.value
 		cluster = get_closest_cluster(point_matrix, offset= np.array([-0.36,0,-0.46, 0])) # This is the offset [x, y, z, Doppler]
 		target = rotate_xy(cluster, angle)
-		conn2.send(target)
+		conn3.send(target)
 	
-shared_data = multiprocessing.Value('f', 0.0)
-conn1, conn2 = multiprocessing.Pipe()
-p1 = multiprocessing.Process(target=read_encoder, args=(shared_data, ))
-p1.start()
-p2 = multiprocessing.Process(target=get_cluster, args=(conn2, ))
-p2.start()
-
-async def main(sens):
+def move_to_target(conn4):
 	turret = Turret()
 	turret.setup_motors()
-	last = [float('inf'),float('inf'),float('inf')]
+	while True:
+		target = conn4.recv()
+		turret.get_xyz(target)
+		turret.find_angle()
+		turret.move_horizontal_motor()
+		turret.move_vertical_motor()
+
+
+shared_data = multiprocessing.Value('f', 0.0)
+conn1, conn2 = multiprocessing.Pipe()
+conn3, conn4 = multiprocessing.Pipe()
+
+p1 = multiprocessing.Process(target=read_encoder, args=(shared_data, ))
+p1.start()
+p2 = multiprocessing.Process(target=get_cluster, args=(conn2,conn3 ))
+p2.start()
+p3 = multiprocessing.Process(target=move_to_target, args=(conn4, ))
+p3.start()
+
+async def main(sens):
 	while True:
 		data = await sens.get_data()
 		point_matrix = data.get()
 		conn1.send(point_matrix)
-		target = conn1.recv()
-		if (distance(last, target) > 0.08):
-			last = target
-			print(target)
-			turret.get_xyz(last)
-			turret.find_angle()
-			turret.move_horizontal_motor()
-			turret.move_vertical_motor()
 		
-
-        
+		 
 event_loop = get_event_loop()
 event_loop.create_task(sensor1.start_sensor())
 event_loop.create_task(main(sensor1))
 event_loop.run_forever()
-
