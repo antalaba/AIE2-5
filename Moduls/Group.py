@@ -66,6 +66,7 @@ def get_closest_cluster(xyz_list : np.array, offset= np.array([0, 0, 0, 0])) -> 
     cluster_distance = point.distance(closest.mid, [0,0,0])
     for i in clusters:
         if (point.distance(i.mid, [0,0,0]) < cluster_distance):
+            cluster_distance = point.distance(i.mid, [0,0,0])
             closest = i
 
     return closest
